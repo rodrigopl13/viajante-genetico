@@ -12,7 +12,7 @@ func main() {
 	printDistance(p.Distance)
 }
 
-func printPopulation(p [][]int32) {
+func printPopulation(p [][]int) {
 	for i := range p {
 		fmt.Printf("%3d :: ", i+1)
 		for j := range p[i] {

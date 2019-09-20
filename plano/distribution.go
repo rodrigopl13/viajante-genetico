@@ -1,17 +1,16 @@
 package plano
 
-
 type Coordenada struct {
-	X int32
-	Y int32
+	X int
+	Y int
 }
 
 type Distribution struct {
-	Cities map[int32]Coordenada
+	Cities map[int]Coordenada
 }
 
-func CreateCities() Distribution {
-	d := Distribution{Cities: map[int32]Coordenada{
+func CreateCities() *Distribution {
+	d := &Distribution{Cities: map[int]Coordenada{
 		1: {
 			X: 3,
 			Y: 4,
