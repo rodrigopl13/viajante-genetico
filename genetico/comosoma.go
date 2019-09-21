@@ -9,40 +9,62 @@ import (
 )
 
 type Generation struct {
-	Population  [][]int
-	Coordenates *plano.Distribution
-	Distance    []float64
+	Population [][]int
+	Cities     plano.Cities
+	Distance   []float64
 }
 
-func NewGeneration(population, sizeChromosome int, distribution *plano.Distribution) *Generation {
+func NewGeneration(population, sizeChromosome int, distribution plano.Cities) *Generation {
 	var wg sync.WaitGroup
 	p := make([][]int, population)
-	wg.Add(len(p))
 	for i := range p {
+		wg.Add(1)
 		go randomChromosome(p, i, sizeChromosome, &wg)
 	}
 
 	wg.Wait()
+	//var wg2 sync.WaitGroup
 	d := make([]float64, population)
 	for i := range p {
+		//wg2.Add(1)
 		go calculateDistanceChromosome(p[i], d, i, distribution)
 	}
-	//wg.Wait()
+	//wg2.Wait()
 	return &Generation{
-		Population:  p,
-		Coordenates: distribution,
-		Distance:    d,
+		Population: p,
+		Cities:     distribution,
+		Distance:   d,
 	}
 }
 
 func NextGeneration(currentGeneration *Generation) *Generation {
 	population := len(currentGeneration.Population)
-
+	var wg sync.WaitGroup
 	ng := &Generation{
-		Population:  make([][]int, population),
-		Coordenates: currentGeneration.Coordenates,
-		Distance:    make([]float64, population),
+		Population: make([][]int, population),
+		Cities:     currentGeneration.Cities,
+		Distance:   make([]float64, population),
 	}
+
+	for i := 0; i < population; i++ {
+		wg.Add(1)
+		go competeChromosomes(currentGeneration, ng, i, 0.5, &wg)
+	}
+
+	wg.Wait()
+	for i := range ng.Population {
+		if i%2 == 0 {
+			Intercambio(ng.Population[i])
+		} else {
+			Inversion(ng.Population[i])
+		}
+	}
+	//var wg2 sync.WaitGroup
+	for i := range ng.Population {
+		//wg2.Add(1)
+		go calculateDistanceChromosome(ng.Population[i], ng.Distance, i, ng.Cities)
+	}
+	//wg2.Wait()
 
 	return ng
 }
@@ -52,7 +74,9 @@ func competeChromosomes(
 	newGeneration *Generation,
 	position int,
 	percentaje float32,
+	wg *sync.WaitGroup,
 ) {
+	defer wg.Done()
 	population := len(currentGeneration.Population)
 	p := float32(population) * percentaje
 	minDistance := math.MaxFloat64
@@ -92,35 +116,37 @@ func calculateDistanceChromosome(
 	chromosome []int,
 	distance []float64,
 	index int,
-	distribution *plano.Distribution,
+	cities plano.Cities,
+	//wg *sync.WaitGroup,
 ) {
+	//defer wg.Wait()
 	if len(chromosome) < 2 {
 		distance[index] = 0
 		return
 	}
 	var d float64
 	d = calculateDistance(
-		distribution.Cities[chromosome[0]].X,
-		distribution.Cities[chromosome[0]].Y,
-		distribution.Cities[chromosome[1]].X,
-		distribution.Cities[chromosome[1]].Y,
+		cities[chromosome[0]].X,
+		cities[chromosome[0]].Y,
+		cities[chromosome[1]].X,
+		cities[chromosome[1]].Y,
 	)
 
 	if len(chromosome) > 2 {
 		for i := 1; i < len(chromosome)-1; i++ {
 			d += calculateDistance(
-				distribution.Cities[chromosome[i]].X,
-				distribution.Cities[chromosome[i]].Y,
-				distribution.Cities[chromosome[i+1]].X,
-				distribution.Cities[chromosome[i+1]].Y,
+				cities[chromosome[i]].X,
+				cities[chromosome[i]].Y,
+				cities[chromosome[i+1]].X,
+				cities[chromosome[i+1]].Y,
 			)
 		}
 	}
 	distance[index] = d
 }
 
-func calculateDistance(x1, y1, x2, y2 int) float64 {
-	return math.Sqrt(math.Pow(math.Abs(float64(x2-x1)), 2) + math.Pow(math.Abs(float64(y2-y1)), 2))
+func calculateDistance(x1, y1, x2, y2 float64) float64 {
+	return math.Sqrt(math.Pow(math.Abs(x2-x1), 2) + math.Pow(math.Abs(y2-y1), 2))
 }
 
 func Inversion(a []int) {
