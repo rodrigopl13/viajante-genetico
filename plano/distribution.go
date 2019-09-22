@@ -18,7 +18,7 @@ func CreateCities() Cities {
 			Y: 6,
 		},
 		3: {
-			X: 8,
+			X: 9,
 			Y: 7,
 		},
 		4: {
@@ -26,7 +26,7 @@ func CreateCities() Cities {
 			Y: 2,
 		},
 		5: {
-			X: 8,
+			X: 9,
 			Y: 1,
 		},
 		6: {
@@ -50,7 +50,7 @@ func CreateCities() Cities {
 			Y: 3,
 		},
 		11: {
-			X: 8,
+			X: 9,
 			Y: 5,
 		},
 		12: {

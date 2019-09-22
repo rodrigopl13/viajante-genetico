@@ -15,58 +15,85 @@ type Generation struct {
 }
 
 func NewGeneration(population, sizeChromosome int, distribution plano.Cities) *Generation {
-	var wg sync.WaitGroup
-	p := make([][]int, population)
-	for i := range p {
-		wg.Add(1)
-		go randomChromosome(p, i, sizeChromosome, &wg)
-	}
-
-	wg.Wait()
-	//var wg2 sync.WaitGroup
-	d := make([]float64, population)
-	for i := range p {
-		//wg2.Add(1)
-		go calculateDistanceChromosome(p[i], d, i, distribution)
-	}
-	//wg2.Wait()
-	return &Generation{
-		Population: p,
+	ng := &Generation{
+		Population: make([][]int, population),
 		Cities:     distribution,
-		Distance:   d,
+		Distance:   make([]float64, population),
 	}
+	generateRandom(ng, sizeChromosome)
+	generateDistance(ng)
+	return ng
 }
 
 func NextGeneration(currentGeneration *Generation) *Generation {
 	population := len(currentGeneration.Population)
-	var wg sync.WaitGroup
 	ng := &Generation{
 		Population: make([][]int, population),
 		Cities:     currentGeneration.Cities,
 		Distance:   make([]float64, population),
 	}
 
-	for i := 0; i < population; i++ {
+	generateCompete(currentGeneration, ng)
+
+	generateOperations(ng)
+
+	generateDistance(ng)
+	return ng
+}
+
+func generateRandom(ng *Generation, sizeChromosome int) {
+	var wg sync.WaitGroup
+	for i := range ng.Population {
 		wg.Add(1)
-		go competeChromosomes(currentGeneration, ng, i, 0.5, &wg)
+		go randomChromosome(ng.Population, i, sizeChromosome, &wg)
 	}
 
 	wg.Wait()
-	for i := range ng.Population {
-		if i%2 == 0 {
-			Intercambio(ng.Population[i])
+}
+
+func generateCompete(currentGeneration, newGeneration *Generation) {
+	population := len(currentGeneration.Population)
+	var wg sync.WaitGroup
+
+	for i := 0; i < population; i++ {
+		wg.Add(1)
+		go competeChromosomes(currentGeneration, newGeneration, i, 0.5, &wg)
+	}
+
+	wg.Wait()
+}
+
+func generateOperations(newGeneration *Generation) {
+	var wg sync.WaitGroup
+	countInversion := 0
+	var r int
+	for i := range newGeneration.Population {
+		wg.Add(1)
+		rand.Seed(time.Now().UnixNano())
+		r = rand.Intn(2)
+		if r == 0 && countInversion <= 50 {
+			go Inversion(newGeneration.Population[i], &wg)
+			countInversion++
 		} else {
-			Inversion(ng.Population[i])
+			go Intercambio(newGeneration.Population[i], &wg)
 		}
 	}
-	//var wg2 sync.WaitGroup
-	for i := range ng.Population {
-		//wg2.Add(1)
-		go calculateDistanceChromosome(ng.Population[i], ng.Distance, i, ng.Cities)
-	}
-	//wg2.Wait()
+	wg.Wait()
+}
 
-	return ng
+func generateDistance(newGeneration *Generation) {
+	var wg sync.WaitGroup
+	for i := range newGeneration.Population {
+		wg.Add(1)
+		go calculateDistanceChromosome(
+			newGeneration.Population[i],
+			newGeneration.Distance,
+			i,
+			newGeneration.Cities,
+			&wg,
+		)
+	}
+	wg.Wait()
 }
 
 func competeChromosomes(
@@ -76,7 +103,6 @@ func competeChromosomes(
 	percentaje float32,
 	wg *sync.WaitGroup,
 ) {
-	defer wg.Done()
 	population := len(currentGeneration.Population)
 	p := float32(population) * percentaje
 	minDistance := math.MaxFloat64
@@ -93,10 +119,10 @@ func competeChromosomes(
 	newChromosome := make([]int, sizeChromosome)
 	copy(newChromosome, currentGeneration.Population[minIndex])
 	newGeneration.Population[position] = newChromosome
+	wg.Done()
 }
 
 func randomChromosome(p [][]int, chromosome, sizeChromosome int, wg *sync.WaitGroup) {
-	defer wg.Done()
 	c := make(map[int]bool)
 	var random int
 	p[chromosome] = make([]int, sizeChromosome)
@@ -110,6 +136,7 @@ func randomChromosome(p [][]int, chromosome, sizeChromosome int, wg *sync.WaitGr
 		c[random] = true
 		p[chromosome][i] = random
 	}
+	wg.Done()
 }
 
 func calculateDistanceChromosome(
@@ -117,9 +144,8 @@ func calculateDistanceChromosome(
 	distance []float64,
 	index int,
 	cities plano.Cities,
-	//wg *sync.WaitGroup,
+	wg *sync.WaitGroup,
 ) {
-	//defer wg.Wait()
 	if len(chromosome) < 2 {
 		distance[index] = 0
 		return
@@ -143,13 +169,14 @@ func calculateDistanceChromosome(
 		}
 	}
 	distance[index] = d
+	wg.Done()
 }
 
 func calculateDistance(x1, y1, x2, y2 float64) float64 {
 	return math.Sqrt(math.Pow(math.Abs(x2-x1), 2) + math.Pow(math.Abs(y2-y1), 2))
 }
 
-func Inversion(a []int) {
+func Inversion(a []int, wg *sync.WaitGroup) {
 	rand.Seed(time.Now().UnixNano())
 	start := rand.Intn(len(a))
 	size := rand.Intn(len(a) - 2)
@@ -169,22 +196,24 @@ func Inversion(a []int) {
 		a[j] = tmp
 		i++
 	}
+	wg.Done()
 }
 
-func Intercambio(a []int) {
+func Intercambio(a []int, wg *sync.WaitGroup) {
 	rand.Seed(time.Now().UnixNano())
-	size := rand.Intn((len(a) / 2))
+	size := rand.Intn((len(a) / 2)) + 1
 
 	rand.Seed(time.Now().UnixNano())
-	pos1 := rand.Intn((len(a) / 2) - size)
+	pos1 := rand.Intn((len(a)) - (size * 2) + 1)
 
 	rand.Seed(time.Now().UnixNano())
-	pos2 := rand.Intn((len(a)/2)-size) + (len(a)/2 - 1)
+	pos2 := rand.Intn(len(a)-pos1-(size*2)+1) + pos1 + size
 
 	var tmp int
-	for i := 0; i <= size; i++ {
+	for i := 0; i < size; i++ {
 		tmp = a[pos1+i]
 		a[pos1+i] = a[pos2+i]
 		a[pos2+i] = tmp
 	}
+	wg.Done()
 }
